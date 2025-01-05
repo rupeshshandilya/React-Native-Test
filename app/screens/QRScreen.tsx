@@ -1,5 +1,12 @@
-import { CameraView } from "expo-camera";
-import { AppState, SafeAreaView, StyleSheet, View, Text } from "react-native";
+import { Camera, CameraView, useCameraPermissions } from "expo-camera";
+import {
+  AppState,
+  SafeAreaView,
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+} from "react-native";
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Overlay } from "../components/Overlay";
@@ -16,6 +23,8 @@ export default function Home() {
   const appState = useRef(AppState.currentState);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasPermission, setHasPermission] = useState<boolean>(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
@@ -33,12 +42,26 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!permission) requestPermission();
+  }, [permission]);
+
+  if (!permission?.granted) {
+    return (
+      <View>
+        <Text>No access to camera</Text>
+        <Pressable onPress={requestPermission}>
+          <Text>Request Permissions</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   const handleQRScan = async (data: string) => {
     if (!data || qrLock.current) return;
     qrLock.current = true;
 
     try {
-      
       const parsedData = JSON.parse(data);
 
       const response = await axios.post(
@@ -66,6 +89,10 @@ export default function Home() {
           barcodeTypes: ["qr"],
         }}
         onBarcodeScanned={async ({ data }) => await handleQRScan(data)}
+        onMountError={(error) => {
+          console.error("Camera error:", error);
+          setError(error.message);
+        }}
       />
       <Overlay />
 
@@ -75,6 +102,7 @@ export default function Home() {
           <Text style={styles.text}>Name: {userData.name}</Text>
           <Text style={styles.text}>Phone: {userData.phoneNumber}</Text>
           <Text style={styles.text}>Address: {userData.address}</Text>
+          <Text style={styles.text}>PhotoUrl: {userData.photoUrl}</Text>
         </View>
       )}
 
